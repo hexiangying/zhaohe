@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>小伙伴分配优化</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        #mainContainer {
+            display: flex;
+            gap: 20px;
+        }
+        #inputContainer, #resultContainer {
+            flex: 1;
+            max-height: 80vh;
+            overflow-y: auto;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            background: #f9f9f9;
+        }
+        #inputContainer div, #resultContainer div {
+            margin-bottom: 8px;
+            padding: 6px;
+            border-bottom: 1px solid #eee;
+        }
+        input[type="number"] {
+            width: 80px;
+            margin: 0 5px;
+        }
+        #controls {
+            margin-bottom: 15px;
+        }
+    </style>
+</head>
+<body>
+<h1>小伙伴探索分配优化器 <span style="color: red">邀请码：11815，领取海量金币的大量体力</span></h1>
+<div id="controls">
+    <label>
+        <input  style="width: 550px" id="partnersList" placeholder="快速输入小伙伴信息，以英文逗号：','隔开,优先以此输入框信息为准"/>
+        <input type="number" style="width: 150px" id="calculationNumber" placeholder="请输入计算次数"/>
+    </label>
+    <button onclick="calculation()">计算</button>
+    <button onclick="clearInputs()">清除所有输入</button>
+    <progress id="progressBar" max="100" value="0" style="width: 100%; height: 20px; margin-top: 10px;"></progress>
+</div>
+
+<div id="mainContainer">
+    <div id="inputContainer"></div>
+    <div id="resultContainer"></div>
+</div>
+
+<script>
+    const container = document.getElementById("inputContainer");
+    for (let i = 1; i <= 19; i++) {
+        let div = document.createElement("div");
+        div.className = "input-card";
+        div.innerHTML = `
+        <div><strong>第 ${i} 个小伙伴</strong></div>
+        攻击力：<input type="number" class="attack" placeholder="请输入">
+        防御力：<input type="number" class="defense" placeholder="请输入">
+        <span>总计：<span class="total">0</span></span>
+      `;
+        container.appendChild(div);
+
+        const attackInput = div.querySelector('.attack');
+        const defenseInput = div.querySelector('.defense');
+        const totalSpan = div.querySelector('.total');
+
+        attackInput.oninput = defenseInput.oninput = function () {
+            let attack = Number(attackInput.value) || 0;
+            let defense = Number(defenseInput.value) || 0;
+            totalSpan.textContent = attack + defense;
+        };
+    }
+
+    const exploreData = [
+        [1, 350, 1, 579432, 600, 120],
+        [2, 900, 1, 884664, 1200, 240],
+        [3, 1200, 2, 928632, 1800, 360],
+        [4, 2200, 2, 1017096, 2400, 480],
+        [5, 2800, 3, 1105560, 3000, 600],
+        [6, 4000, 3, 1150056, 3600, 720],
+        [7, 4800, 4, 1238520, 4200, 840],
+        [8, 8000, 4, 1326984, 4800, 960],
+        [9, 9000, 4, 1547880, 5400, 1080],
+        [10, 10000, 4, 1769304, 6000, 1200],
+        [11, 11000, 5, 1990224, 6600, 1320],
+        [12, 20000, 5, 2212152, 7200, 1440],
+        [13, 22000, 5, 2434608, 7800, 1560],
+        [14, 23000, 5, 2657064, 8400, 1680],
+        [15, 25000, 6, 2879520, 9000, 1800],
+        [16, 35000, 6, 3101976, 9600, 1920],
+        [17, 51000, 6, 3324432, 10200, 2040],
+        [18, 54000, 6, 3546888, 10800, 2160],
+        [19, 57000, 6, 3769344, 11400, 2280],
+        [20, 65000, 6, 4800000, 13200, 3000],
+        [21, 65000, 6, 4800000, 13200, 3360],
+        [22, 65000, 6, 5040000, 13680, 3600],
+    ];
+
+    const exploreArray = exploreData.map(item => ({
+        level: item[0],
+        attack_defense: item[1],
+        goldCoin: item[3],
+        wood: item[4],
+        stone: item[5],
+    }));
+
+    async function calculation() {
+        const resultContainer = document.getElementById("resultContainer");
+        resultContainer.innerHTML = "";
+
+        let totalAll = document.getElementsByClassName('total');
+        let totalList = [];
+        for (let i = 0; i < totalAll.length; i++) {
+            totalList.push(Number(totalAll[i].textContent) || 0);
+        }
+        let elementById = document.getElementById("partnersList");
+        var value = elementById.value;
+        if (value !== undefined && value !== null && value !== "") {
+          totalList = value.split(',').map(Number);
+        }
+        const total = totalList.reduce((a, b) => a + b, 0);
+        if (total <= 0) {
+            alert("请输入有效数据");
+            return;
+        }
+
+        const partners = totalList.map((power, i) => ({ id: i + 1, power }));
+        let calculationNumber = document.getElementById("calculationNumber");
+        if (calculationNumber === undefined || calculationNumber === null || calculationNumber.value === "" || calculationNumber.value === null ||calculationNumber.value <= 1000) {
+            calculationNumber.value = 2000;
+        }
+        const result = await runGA(partners, exploreArray, calculationNumber.value);
+
+        for (const [levelStr, members] of Object.entries(result.decode)) {
+            const level = exploreArray[levelStr - 1];
+            const totalPower = members.reduce((sum, p) => sum + p.power, 0);
+            const gold = Math.floor(level.goldCoin * Math.min(totalPower / level.attack_defense, 1));
+            const resultItem = document.createElement("div");
+            resultItem.className = "result-item";
+            resultItem.innerHTML = `
+          <div><strong>关卡 ${level.level}</strong> | 战力需求：${level.attack_defense} | 理论金币：${level.goldCoin}</div>
+          <div>实际金币：<strong>${gold}</strong></div>
+          <div>成员：${members.map(m => `${m.id}号（${m.power}）`).join('，')}</div>
+        `;
+            resultContainer.appendChild(resultItem);
+        }
+
+        const goldCount = document.createElement("div");
+        goldCount.innerHTML = `<strong>总金币收益：${result.gold}</strong>`;
+        resultContainer.appendChild(goldCount);
+    }
+
+    async function runGA(partners, exploreArray, generations = 20000, popSize = 200, mutationRate = 0.02) {
+        const progressBar = document.getElementById("progressBar");
+        const numPartners = partners.length;
+        const numLevels = exploreArray.length;
+
+        function createIndividual() {
+            return Array.from({ length: numPartners }, () =>
+                Math.random() < 0.9 ? Math.floor(Math.random() * (numLevels + 1)) : 0
+            );
+        }
+
+        function decode(individual) {
+            const levelMap = {};
+            individual.forEach((lv, i) => {
+                if (lv === 0) return;
+                if (!levelMap[lv]) levelMap[lv] = [];
+                if (levelMap[lv].length < 4) levelMap[lv].push(partners[i]);
+            });
+            return levelMap;
+        }
+
+        function fitness(individual) {
+            const levelMap = decode(individual);
+            let totalGold = 0;
+            for (const [indexStr, members] of Object.entries(levelMap)) {
+                const index = parseInt(indexStr) - 1;
+                const level = exploreArray[index];
+                const totalPower = members.reduce((sum, p) => sum + p.power, 0);
+                const gain = Math.floor(level.goldCoin * Math.min(totalPower / level.attack_defense, 1));
+                totalGold += gain;
+            }
+            return totalGold;
+        }
+
+        function crossover(a, b) {
+            const cut = Math.floor(Math.random() * numPartners);
+            return [
+                [...a.slice(0, cut), ...b.slice(cut)],
+                [...b.slice(0, cut), ...a.slice(cut)]
+            ];
+        }
+
+        function mutate(individual) {
+            return individual.map(gene =>
+                Math.random() < mutationRate ? Math.floor(Math.random() * (numLevels + 1)) : gene
+            );
+        }
+
+        let population = Array.from({ length: popSize }, createIndividual);
+        let best = population[0];
+        let bestFit = fitness(best);
+
+        for (let gen = 0; gen < generations; gen++) {
+            const scored = population.map(ind => ({ ind, fit: fitness(ind) }));
+            scored.sort((a, b) => b.fit - a.fit);
+
+            if (scored[0].fit > bestFit) {
+                best = scored[0].ind;
+                bestFit = scored[0].fit;
+            }
+
+            const newPop = [scored[0].ind];
+            while (newPop.length < popSize) {
+                const [p1, p2] = [
+                    scored[Math.floor(Math.random() * popSize)].ind,
+                    scored[Math.floor(Math.random() * popSize)].ind
+                ];
+                const [child1, child2] = crossover(p1, p2);
+                newPop.push(mutate(child1), mutate(child2));
+            }
+            population = newPop.slice(0, popSize);
+
+            if (gen % 100 === 0) {
+                progressBar.value = Math.floor((gen / generations) * 100);
+                await new Promise(resolve => setTimeout(resolve, 1));
+            }
+        }
+        progressBar.value = 100;
+        return { best, gold: bestFit, decode: decode(best) };
+    }
+
+    function clearInputs() {
+        document.querySelectorAll('.attack, .defense').forEach(input => input.value = '');
+        document.querySelectorAll('.total').forEach(span => span.textContent = '0');
+        document.getElementById("resultContainer").innerHTML = '';
+        document.getElementById("progressBar").value = 0;
+    }
+</script>
+</body>
+</html>
